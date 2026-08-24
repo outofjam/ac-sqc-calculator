@@ -39,6 +39,15 @@ function removeSegment(id){ state.segments = state.segments.filter(s=>s.id!==id)
 
 function fmt(n){ if(n==null || isNaN(n)) return '—'; return Math.round(n).toLocaleString(); }
 
+function airportHint(code, country){
+  code = (code||'').toUpperCase().trim();
+  if(!code) return '';
+  if(Object.keys(airportIndex).length === 0) return ''; // data hasn't loaded yet, don't flag prematurely
+  return country
+    ? `<div class="hint hint-ok">${country}</div>`
+    : `<div class="hint hint-bad">Not a recognized airport code</div>`;
+}
+
 const KIND_LABEL = {
   'ac-dollar':'AC $ + brand', 'nonstar-ac-ticket':'014 · non-star $',
   'star-distance':'Partner · distance %', 'nonstar-other':'Non-star · distance',
@@ -102,12 +111,12 @@ function render(){
       </div>
       <div class="row3">
         <div class="field"><label>Operating</label><input type="text" maxlength="3" class="mono segInput" data-field="airline" data-id="${seg.id}" value="${seg.airline}" placeholder="AC" list="airlineList" autocomplete="off"></div>
-        <div class="field"><label>Origin</label><input type="text" maxlength="4" class="mono segInput" data-field="orig" data-id="${seg.id}" value="${seg.orig}" placeholder="YYZ"></div>
-        <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR"></div>
+        <div class="field"><label>Origin</label><input type="text" maxlength="4" class="mono segInput" data-field="orig" data-id="${seg.id}" value="${seg.orig}" placeholder="YYZ">${airportHint(seg.orig, seg.originCountry)}</div>
+        <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR">${airportHint(seg.dest, seg.destinationCountry)}</div>
       </div>
       <div class="row2">
         <div class="field"><label>Fare class</label><input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K" list="${fareClassListId}" autocomplete="off"></div>
-        <div class="field"><label>Fare brand / basis</label><input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)"></div>
+        <div class="field"><label>Fare brand / basis</label><input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)" list="fareBrandList" autocomplete="off"></div>
       </div>
       <datalist id="${fareClassListId}">${fareClasses.map(c=>`<option value="${c}">`).join('')}</datalist>
       <div class="distance-strip">
@@ -191,6 +200,20 @@ function populateAirlineDatalist(){
   }).join('');
 }
 populateAirlineDatalist();
+
+// mirrors the brand -> SQC multiplier rules in getAcTicketSqcMultiplier (calc.js)
+const FARE_BRAND_HINTS = {
+  BA:'0× SQC', GT:'0× SQC', TG:'2× SQC',
+  FL:'4× SQC if 014-ticketed, else 2×', CO:'4× SQC if 014-ticketed, else 2×', LT:'4× SQC if 014-ticketed, else 2×',
+  PL:'4× SQC', PF:'4× SQC', EL:'4× SQC', EF:'4× SQC',
+};
+function populateFareBrandDatalist(){
+  const dl = document.getElementById('fareBrandList');
+  dl.innerHTML = Object.keys(FARE_BRAND_HINTS).sort().map(code =>
+    `<option value="${code}" label="${FARE_BRAND_HINTS[code]}">`
+  ).join('');
+}
+populateFareBrandDatalist();
 
 function clampNonNegative(el){ if(el.value !== '' && parseFloat(el.value) < 0) el.value = 0; }
 
