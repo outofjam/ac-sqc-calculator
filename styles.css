@@ -89,6 +89,21 @@ input[type=text], input[type=number]{
   -webkit-appearance:none; appearance:none;
 }
 input:focus{ outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(242,169,59,0.15); }
+select{
+  width:100%; background: var(--navy-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f2a93b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border:1px solid var(--navy-line); color:var(--paper);
+  border-radius:10px; padding: 11px 30px 11px 12px; font-size:15px; font-family:'Inter',sans-serif;
+  -webkit-appearance:none; appearance:none; cursor:pointer;
+}
+select:focus{ outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(242,169,59,0.15); }
+.chip-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+.chip{
+  font-family:'Space Mono',monospace; font-size:11px; padding:4px 10px;
+  border-radius:999px; background: var(--navy-panel); border:1px solid var(--navy-line);
+  color:var(--paper-dim); cursor:pointer; user-select:none;
+}
+.chip:hover{ border-color: var(--amber); color: var(--amber); }
+.chip:active{ background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
 .field{margin-bottom:12px;}
 .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}

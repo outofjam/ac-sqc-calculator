@@ -101,7 +101,6 @@ function render(){
       ticketNumber,
     };
     const fareClasses = getValidFareClasses(effOp, ctx);
-    const fareClassListId = `fareClassList-${seg.id}`;
 
     card.innerHTML = `
       <div class="segcard-head">
@@ -110,15 +109,22 @@ function render(){
         <button class="removeSeg" data-id="${seg.id}">✕</button>
       </div>
       <div class="row3">
-        <div class="field"><label>Operating</label><input type="text" maxlength="3" class="mono segInput" data-field="airline" data-id="${seg.id}" value="${seg.airline}" placeholder="AC" list="airlineList" autocomplete="off"></div>
+        <div class="field"><label>Operating</label><select class="mono segInput" data-field="airline" data-id="${seg.id}">${airlineOptionsHtml(seg.airline)}</select></div>
         <div class="field"><label>Origin</label><input type="text" maxlength="4" class="mono segInput" data-field="orig" data-id="${seg.id}" value="${seg.orig}" placeholder="YYZ">${airportHint(seg.orig, seg.originCountry)}</div>
         <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR">${airportHint(seg.dest, seg.destinationCountry)}</div>
       </div>
       <div class="row2">
-        <div class="field"><label>Fare class</label><input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K" list="${fareClassListId}" autocomplete="off"></div>
-        <div class="field"><label>Fare brand / basis</label><input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)" list="fareBrandList" autocomplete="off"></div>
+        <div class="field">
+          <label>Fare class</label>
+          <input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K">
+          ${chipRowHtml(seg.id, 'fareClass', fareClasses.map(c=>({value:c, label:c})))}
+        </div>
+        <div class="field">
+          <label>Fare brand / basis</label>
+          <input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)">
+          ${chipRowHtml(seg.id, 'fareBrand', Object.keys(FARE_BRAND_INFO).sort().map(c=>({value:c, label:c, title:FARE_BRAND_INFO[c].name ? `${FARE_BRAND_INFO[c].name} — ${FARE_BRAND_INFO[c].mult}` : FARE_BRAND_INFO[c].mult})))}
+        </div>
       </div>
-      <datalist id="${fareClassListId}">${fareClasses.map(c=>`<option value="${c}">`).join('')}</datalist>
       <div class="distance-strip">
         <span>Distance: <span class="val mono">${seg.distance!=null ? seg.distance.toLocaleString()+' mi' : 'enter below'}</span></span>
         <span class="badge ${badgeClass}">${badgeLabel}</span>
@@ -175,6 +181,21 @@ function wireSegmentInputs(){
       if(again){ again.focus(); if(again.setSelectionRange && again.value){ const p=again.value.length; try{again.setSelectionRange(p,p);}catch(e){} } }
     };
   });
+  document.querySelectorAll('.chip').forEach(btn=>{
+    btn.onclick = ()=>{
+      const seg = state.segments.find(s=>s.id===parseInt(btn.dataset.chipId));
+      if(!seg) return;
+      seg[btn.dataset.chipField] = btn.dataset.chipValue;
+      render();
+    };
+  });
+}
+
+function chipRowHtml(segId, field, items){
+  if(!items.length) return '';
+  return `<div class="chip-row">${items.map(it =>
+    `<button type="button" class="chip" data-chip-id="${segId}" data-chip-field="${field}" data-chip-value="${it.value}"${it.title ? ` title="${it.title}"` : ''}>${it.label}</button>`
+  ).join('')}</div>`;
 }
 
 // display names sourced from cowtool-llc/ac-sqd's getCalculator() comments
@@ -191,29 +212,30 @@ const AIRLINE_NAMES = {
   ZH:'Shenzhen Airlines', '3H':'Air Inuit', '4Y':'Eurowings Discover', '5T':'Canadian North',
   CL:'Lufthansa (codeshare)', KA:'Cathay Pacific (codeshare)', NQ:'ANA (codeshare)', NI:'TAP Air Portugal (codeshare)',
 };
-function populateAirlineDatalist(){
-  const dl = document.getElementById('airlineList');
+function airlineOptionsHtml(selected){
   const codes = new Set([...Object.keys(CARRIERS), ...AC_GROUP, ...LX_REMAP]);
-  dl.innerHTML = [...codes].sort().map(code => {
+  return [...codes].sort().map(code => {
     const name = AIRLINE_NAMES[code] || (AC_GROUP.has(code) ? 'Air Canada (regional/codeshare)' : LX_REMAP.has(code) ? 'Swiss (codeshare)' : '');
-    return `<option value="${code}"${name ? ` label="${name}"` : ''}>`;
+    const label = name ? `${code} — ${name}` : code;
+    return `<option value="${code}"${code===selected ? ' selected' : ''}>${label}</option>`;
   }).join('');
 }
-populateAirlineDatalist();
 
-// mirrors the brand -> SQC multiplier rules in getAcTicketSqcMultiplier (calc.js)
-const FARE_BRAND_HINTS = {
-  BA:'0× SQC', GT:'0× SQC', TG:'2× SQC',
-  FL:'4× SQC if 014-ticketed, else 2×', CO:'4× SQC if 014-ticketed, else 2×', LT:'4× SQC if 014-ticketed, else 2×',
-  PL:'4× SQC', PF:'4× SQC', EL:'4× SQC', EF:'4× SQC',
+// names per cowtool's published brand code list; GT isn't in that list but is still
+// checked in the upstream calculation engine (getAcTicketSqcMultiplier), so it's kept
+// functionally but without a documented display name.
+const FARE_BRAND_INFO = {
+  BA:{name:'Basic', mult:'0× SQC'},
+  GT:{name:null, mult:'0× SQC'},
+  TG:{name:'Standard', mult:'2× SQC'},
+  FL:{name:'Flex', mult:'4× SQC if 014-ticketed, else 2×'},
+  CO:{name:'Comfort', mult:'4× SQC if 014-ticketed, else 2×'},
+  LT:{name:'Latitude', mult:'4× SQC if 014-ticketed, else 2×'},
+  PL:{name:'Premium Economy (Lowest)', mult:'4× SQC'},
+  PF:{name:'Premium Economy (Flexible)', mult:'4× SQC'},
+  EL:{name:'Business Class (Lowest)', mult:'4× SQC'},
+  EF:{name:'Business Class (Flexible)', mult:'4× SQC'},
 };
-function populateFareBrandDatalist(){
-  const dl = document.getElementById('fareBrandList');
-  dl.innerHTML = Object.keys(FARE_BRAND_HINTS).sort().map(code =>
-    `<option value="${code}" label="${FARE_BRAND_HINTS[code]}">`
-  ).join('');
-}
-populateFareBrandDatalist();
 
 function clampNonNegative(el){ if(el.value !== '' && parseFloat(el.value) < 0) el.value = 0; }
 
