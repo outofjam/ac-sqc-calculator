@@ -51,9 +51,11 @@ function render(){
   const ticketNumber = state.ticketType === '014' ? '0141234567890' : '1251234567890';
 
   state.segments.forEach(seg=>{
-    const dl = lookupDistance(seg.orig, seg.dest);
-    if(dl.source==='auto'){ seg.distance = dl.distance; seg.distSource='auto'; }
-    else if(seg.distSource !== 'manual'){ seg.distance = null; seg.distSource='none'; }
+    if(seg.distSource !== 'manual'){
+      const dl = lookupDistance(seg.orig, seg.dest);
+      if(dl.source==='auto'){ seg.distance = dl.distance; seg.distSource='auto'; }
+      else { seg.distance = null; seg.distSource='none'; }
+    }
     const ap1 = airportIndex[(seg.orig||'').toUpperCase()];
     const ap2 = airportIndex[(seg.dest||'').toUpperCase()];
     seg.originCountry = ap1 ? ap1.country : undefined;
@@ -62,7 +64,8 @@ function render(){
     seg.destinationContinent = countryContinent[seg.destinationCountry];
   });
 
-  const itin = computeItinerary(state.segments, ticketNumber, state.elite);
+  const totalFare = (parseFloat(document.getElementById('baseFare').value)||0) + (parseFloat(document.getElementById('surcharge').value)||0);
+  const itin = computeItinerary(state.segments, ticketNumber, state.elite, totalFare);
 
   state.segments.forEach((seg, idx)=>{
     const r = itin.perSegment[idx];
@@ -78,7 +81,7 @@ function render(){
         <button class="removeSeg" data-id="${seg.id}">✕</button>
       </div>
       <div class="row3">
-        <div class="field"><label>Operating</label><input type="text" maxlength="3" class="mono segInput" data-field="airline" data-id="${seg.id}" value="${seg.airline}" placeholder="AC"></div>
+        <div class="field"><label>Operating</label><input type="text" maxlength="3" class="mono segInput" data-field="airline" data-id="${seg.id}" value="${seg.airline}" placeholder="AC" list="airlineList" autocomplete="off"></div>
         <div class="field"><label>Origin</label><input type="text" maxlength="4" class="mono segInput" data-field="orig" data-id="${seg.id}" value="${seg.orig}" placeholder="YYZ"></div>
         <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR"></div>
       </div>
@@ -132,7 +135,7 @@ function wireSegmentInputs(){
         const v = parseFloat(inp.value);
         if(inp.value===''){ seg.distSource='none'; seg.distance=null; }
         else { seg.distance = v; seg.distSource='manual'; }
-      } else if(['airline','orig','dest','fareClass'].includes(field)){
+      } else if(['airline','orig','dest','fareClass','fareBrand'].includes(field)){
         seg[field] = inp.value.toUpperCase();
       } else {
         seg[field] = inp.value;
@@ -143,6 +146,30 @@ function wireSegmentInputs(){
     };
   });
 }
+
+// display names sourced from cowtool-llc/ac-sqd's getCalculator() comments
+const AIRLINE_NAMES = {
+  AC:'Air Canada', A3:'Aegean Airlines', AD:'Azul Airlines', AI:'Air India', AV:'Avianca',
+  BR:'EVA Air', CA:'Air China', CM:'Copa Airlines', CX:'Cathay Pacific', EK:'Emirates',
+  EN:'Air Dolomiti', ET:'Ethiopian Airlines', EW:'Eurowings', EY:'Etihad Airways', G3:'GOL',
+  GF:'Gulf Air', HO:'Juneyao Airlines', LH:'Lufthansa', LO:'LOT Polish Airlines', LX:'Swiss',
+  MK:'Air Mauritius', MS:'EgyptAir', NH:'ANA', NZ:'Air New Zealand', OA:'Olympic Air',
+  OS:'Austrian Airlines', OU:'Croatia Airlines', OZ:'Asiana Airlines', QH:'Bamboo Airways',
+  SA:'South African Airways', SN:'Brussels Airlines', SQ:'Singapore Airlines', TG:'Thai Airways',
+  TK:'Turkish Airlines', TP:'TAP Air Portugal', UA:'United Airlines', UK:'Vistara',
+  VA:'Virgin Australia', VL:'Lufthansa City Airlines', WY:'Oman Air', YN:'Air Creebec',
+  ZH:'Shenzhen Airlines', '3H':'Air Inuit', '4Y':'Eurowings Discover', '5T':'Canadian North',
+  CL:'Lufthansa (codeshare)', KA:'Cathay Pacific (codeshare)', NQ:'ANA (codeshare)', NI:'TAP Air Portugal (codeshare)',
+};
+function populateAirlineDatalist(){
+  const dl = document.getElementById('airlineList');
+  const codes = new Set([...Object.keys(CARRIERS), ...AC_GROUP, ...LX_REMAP]);
+  dl.innerHTML = [...codes].sort().map(code => {
+    const name = AIRLINE_NAMES[code] || (AC_GROUP.has(code) ? 'Air Canada (regional/codeshare)' : LX_REMAP.has(code) ? 'Swiss (codeshare)' : '');
+    return `<option value="${code}"${name ? ` label="${name}"` : ''}>`;
+  }).join('');
+}
+populateAirlineDatalist();
 
 document.getElementById('addSegBtn').onclick = addSegment;
 document.getElementById('baseFare').oninput = render;

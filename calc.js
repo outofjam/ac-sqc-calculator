@@ -6,6 +6,13 @@
 
 function PICK(fc, table){ return table[fc] !== undefined ? table[fc] : 0; }
 function isAeroplanFareBasis(fb){ return fb.includes("BP00") || fb.includes("AERO"); }
+function parseFareBasis(fareBasis){
+  const split = fareBasis.split("/");
+  const trueBasis = split[0];
+  const brand = trueBasis.slice(-2).toUpperCase();
+  const hasAeDesignator = split.length>1 && split[1].startsWith("AE");
+  return {brand, hasAeDesignator};
+}
 
 function getEliteBonusMultiplier(status){
   switch(String(status)){
@@ -107,11 +114,15 @@ CARRIERS.LX = {star:true, pct:LH_PCT};
 CARRIERS.OS = {star:true, pct:LH_PCT};
 CARRIERS["4Y"] = {star:true, pct:LH_PCT};
 delete CARRIERS.LH_TABLE;
+// codeshare aliases (mirrors getCalculator's combined `when` branches, e.g. "LH", "CL" -> lhCalculator)
+CARRIERS.CL = CARRIERS.LH;
+CARRIERS.KA = CARRIERS.CX;
+CARRIERS.NQ = CARRIERS.NH;
+CARRIERS.NI = CARRIERS.TP;
 
 // operating-airline grouping (mirrors getCalculator's `when` + effectiveOperator remap)
 const AC_GROUP = new Set(["AC","KV","L4","PB","QK","RV","ZX"]);
 const LX_REMAP = new Set(["2L","BT","WK"]);
-const CODESHARE_ALIAS = {CL:"LH", KA:"CX", NQ:"NH", NI:"TP"};
 
 function resolveOperator(op){
   op = op.toUpperCase();
@@ -124,10 +135,8 @@ function getAcTicketSqcMultiplier(fareClass, fareBasis, ticketNumber, originCoun
   if(!sqcEligible) return 0;
   if(fareBasis){
     if(isAeroplanFareBasis(fareBasis) || (fareClass && ["X","I"].includes(fareClass))) return 0;
-    const split = fareBasis.split("/");
-    if(split.length>1 && split[1].startsWith("AE")) return 0;
-    const trueBasis = split[0];
-    const brand = trueBasis.slice(-2).toUpperCase();
+    const {brand, hasAeDesignator} = parseFareBasis(fareBasis);
+    if(hasAeDesignator) return 0;
     if(["BA","GT"].includes(brand)) return 0;
     if(brand==="TG") return 2;
     if(["FL","CO","LT"].includes(brand)) return ticketNumber.startsWith("014") ? 4 : 2;
@@ -211,13 +220,11 @@ function computeLqm(seg, eliteBonusMultiplier, isAcLqmEligible){
   const fareClass = seg.fareClass || null;
   let multiplier;
   if(fareBasis){
-    const split = fareBasis.split("/");
-    const trueBasis = split[0];
-    const brand = trueBasis.slice(-2).toUpperCase();
+    const {brand, hasAeDesignator} = parseFareBasis(fareBasis);
     if(["BA","GT"].includes(brand)) multiplier = 0;
     else if(isAeroplanFareBasis(fareBasis)) multiplier = 0;
     else if(fareClass && ["X","I"].includes(fareClass)) multiplier = 0;
-    else if(split.length>1 && split[1].startsWith("AE")) multiplier = 0;
+    else if(hasAeDesignator) multiplier = 0;
     else if(fareClass && ["J","C","D","Z","P"].includes(fareClass)) multiplier = 1.5;
     else if(fareClass && ["O","E","A"].includes(fareClass)) multiplier = 1.25;
     else multiplier = 1.0;
@@ -234,14 +241,13 @@ function computeLqm(seg, eliteBonusMultiplier, isAcLqmEligible){
   return Math.round(baseDistance * multiplier);
 }
 
-function computeItinerary(segments, ticketNumber, eliteStatus){
+function computeItinerary(segments, ticketNumber, eliteStatus, totalFare){
   const eliteBonusMultiplier = getEliteBonusMultiplier(eliteStatus);
   const effOps = segments.map(s => resolveOperator(s.airline || ""));
   const shapes = segments.map((s,i) => computeSegmentShape(s, ticketNumber, effOps[i]));
 
   const allHaveDistance = segments.every(s => s.distance != null);
   const totalDistance = segments.reduce((sum,s) => sum + (s.distance||0), 0);
-  const totalFare = (parseFloat(document.getElementById('baseFare').value)||0) + (parseFloat(document.getElementById('surcharge').value)||0);
 
   const results = segments.map((seg, i) => {
     const shape = shapes[i];
