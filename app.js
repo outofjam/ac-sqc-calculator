@@ -1,5 +1,5 @@
 /* ============================================================
-   DISTANCE / COUNTRY / CONTINENT DATA — live-fetched
+   DISTANCE / COUNTRY / CONTINENT DATA (live-fetched)
    ============================================================ */
 let airportIndex = {};       // code -> {lat, lon, country}
 let distanceIndex = {};      // "ORIG-DEST" -> miles
@@ -87,7 +87,7 @@ function render(){
         <div class="field"><label>Fare brand / basis</label><input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)"></div>
       </div>
       <div class="distance-strip">
-        <span>Distance: <span class="val mono">${seg.distance!=null ? seg.distance.toLocaleString()+' mi' : '— enter below'}</span></span>
+        <span>Distance: <span class="val mono">${seg.distance!=null ? seg.distance.toLocaleString()+' mi' : 'enter below'}</span></span>
         <span class="badge ${badgeClass}">${badgeLabel}</span>
       </div>
       <div class="field" style="margin-top:8px;">
@@ -104,7 +104,7 @@ function render(){
   });
 
   if(state.segments.length===0){
-    segWrap.innerHTML = `<div class="hint" style="text-align:center; padding:18px 0;">No segments yet — add your first flight below.</div>`;
+    segWrap.innerHTML = `<div class="hint" style="text-align:center; padding:18px 0;">No segments yet. Add your first flight below.</div>`;
   }
 
   updateTotals(itin.totals);
@@ -224,12 +224,12 @@ async function loadData(){
     const distCount = Object.keys(distanceIndex).length;
     const countryCount = Object.keys(countryContinent).length;
     if(airportCount>0){
-      setStatus(`live data loaded — ${airportCount.toLocaleString()} airports, ${distCount.toLocaleString()} routes, ${countryCount.toLocaleString()} countries`, 'st-ok');
+      setStatus(`live data loaded: ${airportCount.toLocaleString()} airports, ${distCount.toLocaleString()} routes, ${countryCount.toLocaleString()} countries`, 'st-ok');
     } else {
-      setStatus('data fetched but columns unrecognized — use manual distance entry', 'st-bad');
+      setStatus('data fetched but columns unrecognized, use manual distance entry', 'st-bad');
     }
   } catch(err){
-    setStatus('could not reach GitHub from this browser — use manual distance entry, country-dependent partner rules will be unavailable', 'st-bad');
+    setStatus('could not reach GitHub from this browser, use manual distance entry; country-dependent partner rules will be unavailable', 'st-bad');
   }
   render();
 }

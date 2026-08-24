@@ -1,7 +1,7 @@
-// calc.js — ported calculation engine (EarningResult.kt / ItineraryImpl.kt logic)
+// calc.js: ported calculation engine (EarningResult.kt / ItineraryImpl.kt logic)
 
 /* ============================================================
-   PORTED CALCULATION ENGINE — mirrors EarningResult.kt / ItineraryImpl.kt
+   PORTED CALCULATION ENGINE (mirrors EarningResult.kt / ItineraryImpl.kt)
    ============================================================ */
 
 function PICK(fc, table){ return table[fc] !== undefined ? table[fc] : 0; }
