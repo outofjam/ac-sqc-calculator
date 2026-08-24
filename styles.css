@@ -156,6 +156,11 @@ summary::-webkit-details-marker{display:none;}
 summary:after{content:'ℹ'; color:var(--amber); font-size:14px;}
 .explain{margin-top:12px; font-size:12.5px; line-height:1.6; color:var(--paper-dim);}
 .explain code{ background:var(--navy-panel); padding:1px 5px; border-radius:4px; font-family:'Space Mono',monospace; font-size:11.5px; color:var(--amber); }
+.legend-list{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+.legend-row{display:grid; grid-template-columns:44px 1fr auto; gap:10px; align-items:center; font-size:12.5px;}
+.legend-code{color:var(--amber); font-weight:700; font-size:12px;}
+.legend-name{color:var(--paper-dim);}
+.legend-mult{color:var(--paper-faint); font-size:11px; text-align:right;}
 .summary-bar{
   position:fixed; left:0; right:0; bottom:0; z-index:30;
   background: linear-gradient(180deg, rgba(10,24,38,0), var(--navy-deep) 18%);

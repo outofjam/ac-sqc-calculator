@@ -236,6 +236,10 @@ const FARE_BRAND_INFO = {
   EL:{name:'Business Class (Lowest)', mult:'4× SQC'},
   EF:{name:'Business Class (Flexible)', mult:'4× SQC'},
 };
+document.getElementById('fareBrandLegend').innerHTML = Object.keys(FARE_BRAND_INFO).sort().map(code => {
+  const info = FARE_BRAND_INFO[code];
+  return `<div class="legend-row"><span class="mono legend-code">${code}</span><span class="legend-name">${info.name || '—'}</span><span class="legend-mult mono">${info.mult}</span></div>`;
+}).join('');
 
 function clampNonNegative(el){ if(el.value !== '' && parseFloat(el.value) < 0) el.value = 0; }
 
