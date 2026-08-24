@@ -39,14 +39,18 @@ function ctxFlags(ctx){
     domesticSA: ctx.originCountry==="South Africa" && ctx.destinationCountry==="South Africa",
   };
 }
+// mirrors upstream's `if (args.originCountry == null || ...) null else ...` guards:
+// when country/continent data isn't known yet, the result is "unknown", not a computed percentage.
+function needsCountry(ctx){ return ctx.originCountry==null || ctx.destinationCountry==null; }
+function needsContinent(ctx){ return ctx.originContinent==null || ctx.destinationContinent==null; }
 
 const CARRIERS = {
   A3: {star:true, pct:(fc)=>PICK(fc,{A:125,C:125,D:125,Z:125,Y:100,B:100,G:100,W:100,H:100,L:100,M:100,V:100,Q:100,O:50,J:50,S:50,K:50,U:25,T:25,P:25,E:25})},
   AD: {star:false, pct:(fc)=>PICK(fc,{J:150,C:150,D:150,I:150,Y:100,B:100,A:100,E:100,F:100,G:100,H:100,K:100,L:100,M:100,N:100,O:100,P:75,Q:75,S:50,T:50,U:50,X:25,Z:25})},
-  AI: {star:true, pct:(fc,ctx)=>{ const f=ctxFlags(ctx); return f.domesticIndia
+  AI: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx)) return null; const f=ctxFlags(ctx); return f.domesticIndia
     ? PICK(fc,{F:150,C:125,D:125,J:125,Z:125,R:110,A:110,N:110,Y:100,B:100,M:100,H:100,K:100,Q:100,V:100,W:100,G:100,L:50,U:25,T:25,S:25})
     : PICK(fc,{F:150,C:125,D:125,J:125,Z:125,R:110,A:110,N:110,Y:100,B:100,M:100,H:100,K:100,Q:100,V:100,W:100,G:100,L:50,U:50,T:50,S:50}); }},
-  AV: {star:true, pct:(fc)=>PICK(fc,{C:125,J:125,D:125,F:125,Y:100,B:100,M:100,H:100,Q:100,V:100,A:100,E:100,G:100,K:100,L:100,O:100,P:100,Z:100,T:25,W:25,S:25})},
+  AV: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx)) return null; return PICK(fc,{C:125,J:125,D:125,F:125,Y:100,B:100,M:100,H:100,Q:100,V:100,A:100,E:100,G:100,K:100,L:100,O:100,P:100,Z:100,T:25,W:25,S:25}); }},
   BR: {star:true, pct:(fc)=>PICK(fc,{C:125,J:125,D:125,K:100,L:100,T:100,P:100,Y:100,B:100,M:75,H:75,Q:50,S:50})},
   CA: {star:true, pct:(fc)=>PICK(fc,{F:150,A:150,J:150,C:150,D:150,Z:125,R:110,G:110,E:90,Y:100,B:100,M:75,H:75,U:75,Q:75,V:75,W:50,T:50,S:50,L:25,K:25,P:25})},
   CM: {star:true, pct:(fc)=>PICK(fc,{C:125,J:125,D:125,R:125,Y:100,B:100,M:100,H:100,Q:100,K:100,V:100,U:100,S:100,W:100,E:100,L:100,T:100,O:100,A:100})},
@@ -70,21 +74,21 @@ const CARRIERS = {
   LH_TABLE: null, // placeholder marker (see LH below)
   LO: {star:true, pct:(fc)=>PICK(fc,{C:125,D:125,Z:100,F:100,P:105,A:100,R:100,Y:100,B:100,M:100,E:75,H:75,K:75,Q:75,T:75,G:75,S:75,V:50,W:50,L:50,U:25,O:25})},
   MK: {star:false, pct:(fc)=>PICK(fc,{J:125,D:125,C:125,R:125,I:125,Y:100,K:100,H:75,T:75,U:50,V:50,S:50,L:50,Q:25,M:25,O:25,X:25,G:25,B:25,E:25,N:25})},
-  MS: {star:true, pct:(fc,ctx)=>{ const f=ctxFlags(ctx); return f.domesticEgypt
+  MS: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx)) return null; const f=ctxFlags(ctx); return f.domesticEgypt
     ? PICK(fc,{C:125,D:125,J:125,Z:125,Y:100,B:100,M:100,H:100,Q:75,K:75})
     : PICK(fc,{C:125,D:125,J:125,Z:125,Y:100,B:100,M:100,H:100,Q:75,K:75,V:50,L:50,G:25,S:25,W:25,T:25}); }},
   NH: {star:true, pct:(fc)=>PICK(fc,{F:150,A:150,J:150,C:125,D:125,Z:125,P:100,G:100,E:100,N:70,Y:100,B:100,M:100,U:70,H:70,Q:70,V:50,W:50,S:50,T:50,L:30,K:30})},
-  NZ: {star:true, pct:(fc,ctx)=>{ const f=ctxFlags(ctx);
+  NZ: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx) || needsContinent(ctx)) return null; const f=ctxFlags(ctx);
       if(f.domesticNZ) return PICK(fc,{C:125,D:125,J:125,Z:125,U:100,E:100,O:100,A:100,Y:100,B:100,M:70,H:70,Q:70,V:70});
       if(f.oceaniaOceania) return PICK(fc,{C:125,D:125,J:125,Z:125,U:100,E:100,O:100,A:100,Y:100,B:100,M:70,H:70,Q:70});
       return PICK(fc,{C:125,D:125,J:125,Z:125,U:100,E:100,O:100,A:100,Y:100,B:100,M:70,H:70,Q:70,V:70,W:70,T:70}); }},
   OA: {star:true, pct:(fc)=>PICK(fc,{A:125,C:125,D:125,Z:125,Y:100,B:100,G:100,W:100,H:100,L:100,M:100,V:100,Q:100,O:50,J:50,S:50,K:50,U:25,T:25,P:25,E:25})},
   OU: {star:true, pct:(fc)=>PICK(fc,{C:125,D:125,Z:125,Y:100,B:100,M:75,H:75,K:75,V:75,Q:75,A:75,F:75,W:50,S:50,J:50,O:50,P:50,G:50,T:25,E:25})},
-  OZ: {star:true, pct:(fc,ctx)=>{ const f=ctxFlags(ctx); return f.domesticKorea
+  OZ: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx)) return null; const f=ctxFlags(ctx); return f.domesticKorea
     ? PICK(fc,{C:125,U:100,Y:100,B:100,A:100,M:50,H:50,E:50,Q:50,K:50,S:50,V:25})
     : PICK(fc,{C:125,D:125,J:125,Z:125,U:100,Y:100,B:100,M:100,A:50,H:50,E:50,Q:50,K:50,S:50,V:25,W:25,G:25,T:25}); }},
   QH: {star:false, pct:(fc)=>PICK(fc,{J:125,C:125,I:125,Z:110,X:110,E:110,Y:100,W:100,S:100,B:100,H:50,K:50,L:50,M:50,N:50,Q:25,T:25,O:25,R:25})},
-  SA: {star:true, pct:(fc,ctx)=>{ const f=ctxFlags(ctx); return f.domesticSA
+  SA: {star:true, pct:(fc,ctx)=>{ if(needsCountry(ctx)) return null; const f=ctxFlags(ctx); return f.domesticSA
     ? PICK(fc,{C:150,J:150,Z:125,D:100,Y:100,B:100,M:100,K:100,H:50,S:50,Q:50,T:50,V:50,L:25,W:25,G:25})
     : PICK(fc,{C:150,J:150,Z:125,D:125,P:125,Y:100,B:100,M:100,K:100,H:50,S:50,Q:50,T:50,V:50,L:25,W:25,G:25}); }},
   SN: {star:true, pct:(fc)=>PICK(fc,{J:150,C:150,D:150,Z:150,P:100,G:125,E:125,N:100,Y:125,B:125,M:100,U:100,H:100,W:50,S:50,T:50,Q:50,V:50,O:50})},
@@ -106,7 +110,7 @@ const CARRIERS = {
   "3H": {star:false, pct:(fc)=>PICK(fc,{Y:100,V:100,P:100,R:100,B:85,H:75,T:25,W:25})},
   "5T": {star:false, pct:(fc)=>PICK(fc,{Y:100,C:75,P:75,H:75,M:50,O:50,B:25,A:25,T:25})},
 };
-const LH_PCT = (fc,ctx)=>{ const f=ctxFlags(ctx); return f.euEu
+const LH_PCT = (fc,ctx)=>{ if(needsContinent(ctx)) return null; const f=ctxFlags(ctx); return f.euEu
   ? PICK(fc,{J:150,C:150,D:150,Z:150,P:50,Y:50,B:50,M:50,U:50,H:50,Q:50,V:50,W:50,S:50,T:50,L:50})
   : PICK(fc,{F:150,A:150,J:150,C:150,D:150,Z:150,P:100,G:125,E:125,N:100,Y:125,B:125,M:100,U:100,H:100,Q:100,V:100,W:50,S:50,T:50,L:50}); };
 CARRIERS.LH = {star:true, pct:LH_PCT};
@@ -203,6 +207,7 @@ function computeSegmentShape(seg, ticketNumber, effOp){
       if(mult == null) return {kind:'unknown', isAcLqmEligible:false};
       return {kind:'ac-dollar', sqcMultiplier:mult, isAcLqmEligible:false};
     }
+    if(pct === null) return {kind:'unknown', isAcLqmEligible:false};
     return {kind:'star-distance', pct, isAcLqmEligible:false};
   } else {
     if(pct === 0) return {kind:'zero', isAcLqmEligible:false};

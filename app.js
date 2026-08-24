@@ -45,6 +45,17 @@ const KIND_LABEL = {
   'zero':'Not eligible', 'unknown':'Need more info',
 };
 
+// AC's dollar+brand method falls back to fare class via getSqcMultiplierFromFareClass, not a pct table
+const AC_FALLBACK_CLASSES = ['J','C','D','Z','P','O','E','A','Y','B','M','U','H','Q','V','W','S','T','L','K','G'];
+function getValidFareClasses(effOp, ctx){
+  if(effOp === 'AC') return AC_FALLBACK_CLASSES;
+  const carrier = CARRIERS[effOp];
+  if(!carrier) return [];
+  return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => {
+    try { return carrier.pct(l, ctx) > 0; } catch(e){ return false; }
+  });
+}
+
 function render(){
   const segWrap = document.getElementById('segments');
   segWrap.innerHTML = '';
@@ -73,6 +84,15 @@ function render(){
     card.className='segcard';
     const badgeClass = seg.distSource==='auto' ? 'badge-auto' : seg.distSource==='manual' ? 'badge-manual' : 'badge-none';
     const badgeLabel = seg.distSource==='auto' ? 'AUTO' : seg.distSource==='manual' ? 'MANUAL' : 'NO DATA';
+    const effOp = resolveOperator(seg.airline || '');
+    const ctx = {
+      origin: seg.orig, destination: seg.dest,
+      originCountry: seg.originCountry, destinationCountry: seg.destinationCountry,
+      originContinent: seg.originContinent, destinationContinent: seg.destinationContinent,
+      ticketNumber,
+    };
+    const fareClasses = getValidFareClasses(effOp, ctx);
+    const fareClassListId = `fareClassList-${seg.id}`;
 
     card.innerHTML = `
       <div class="segcard-head">
@@ -86,15 +106,16 @@ function render(){
         <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR"></div>
       </div>
       <div class="row2">
-        <div class="field"><label>Fare class</label><input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K"></div>
+        <div class="field"><label>Fare class</label><input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K" list="${fareClassListId}" autocomplete="off"></div>
         <div class="field"><label>Fare brand / basis</label><input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)"></div>
       </div>
+      <datalist id="${fareClassListId}">${fareClasses.map(c=>`<option value="${c}">`).join('')}</datalist>
       <div class="distance-strip">
         <span>Distance: <span class="val mono">${seg.distance!=null ? seg.distance.toLocaleString()+' mi' : 'enter below'}</span></span>
         <span class="badge ${badgeClass}">${badgeLabel}</span>
       </div>
       <div class="field" style="margin-top:8px;">
-        <input type="number" class="mono segInput" data-field="distanceManual" data-id="${seg.id}" placeholder="Override distance (mi)" value="${seg.distSource==='manual' ? seg.distance : ''}">
+        <input type="number" min="0" class="mono segInput" data-field="distanceManual" data-id="${seg.id}" placeholder="Override distance (mi)" value="${seg.distSource==='manual' ? seg.distance : ''}">
       </div>
       <div class="earn-kind"><span class="tag">${KIND_LABEL[r.shape.kind]}</span>${r.shape.sqcMultiplier!=null ? `<span>SQC ×${r.shape.sqcMultiplier}</span>`:''}${r.shape.pct!=null ? `<span>${r.shape.pct}% of distance</span>`:''}</div>
       <div class="seg-result">
@@ -134,7 +155,7 @@ function wireSegmentInputs(){
       if(field==='distanceManual'){
         const v = parseFloat(inp.value);
         if(inp.value===''){ seg.distSource='none'; seg.distance=null; }
-        else { seg.distance = v; seg.distSource='manual'; }
+        else { seg.distance = Math.max(0, v); seg.distSource='manual'; }
       } else if(['airline','orig','dest','fareClass','fareBrand'].includes(field)){
         seg[field] = inp.value.toUpperCase();
       } else {
@@ -171,9 +192,11 @@ function populateAirlineDatalist(){
 }
 populateAirlineDatalist();
 
+function clampNonNegative(el){ if(el.value !== '' && parseFloat(el.value) < 0) el.value = 0; }
+
 document.getElementById('addSegBtn').onclick = addSegment;
-document.getElementById('baseFare').oninput = render;
-document.getElementById('surcharge').oninput = render;
+document.getElementById('baseFare').oninput = (e)=>{ clampNonNegative(e.target); render(); };
+document.getElementById('surcharge').oninput = (e)=>{ clampNonNegative(e.target); render(); };
 document.getElementById('ticketType').addEventListener('click', (e)=>{
   const pill = e.target.closest('.pill'); if(!pill) return;
   [...pill.parentElement.children].forEach(c=>c.classList.remove('active'));
