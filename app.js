@@ -261,6 +261,22 @@ document.getElementById('eliteStatus').addEventListener('click', (e)=>{
   render();
 });
 
+function getTheme(){ return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+function applyThemeIcon(){
+  const btn = document.getElementById('themeToggle');
+  const theme = getTheme();
+  btn.textContent = theme === 'light' ? '☾' : '☀';
+  btn.setAttribute('aria-label', theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+}
+applyThemeIcon();
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  const next = getTheme() === 'light' ? 'dark' : 'light';
+  if(next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem('theme', next); }catch(e){}
+  applyThemeIcon();
+});
+
 function setStatus(msg, cls){
   const el = document.getElementById('dataStatus');
   el.textContent = '● ' + msg;

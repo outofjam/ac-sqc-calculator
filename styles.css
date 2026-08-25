@@ -11,6 +11,27 @@
   --green:#57c98a;
   --red:#e5646a;
   --radius:14px;
+  --header-bg: rgba(10,24,38,0.92);
+  --shadow: 0 10px 40px rgba(0,0,0,0.45);
+  --field-bg: #050b13;
+  --field-border: rgba(226,235,244,0.22);
+}
+:root[data-theme="light"]{
+  --navy-deep:#f7f3ea;
+  --navy-panel:#ffffff;
+  --navy-card:#efe8d8;
+  --navy-line: rgba(24,36,50,0.16);
+  --amber:#a3690a;
+  --amber-dim: rgba(163,105,10,0.14);
+  --paper:#182432;
+  --paper-dim: rgba(24,36,50,0.62);
+  --paper-faint: rgba(24,36,50,0.38);
+  --green:#1f8a55;
+  --red:#c33c42;
+  --header-bg: rgba(255,255,255,0.85);
+  --shadow: 0 10px 30px rgba(24,36,50,0.15);
+  --field-bg: #dfe3e8;
+  --field-border: rgba(24,36,50,0.32);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -29,9 +50,18 @@ header{
   padding: 22px 16px 14px;
   border-bottom: 1px solid var(--navy-line);
   position:sticky; top:0; z-index:20;
-  background: rgba(10,24,38,0.92);
+  background: var(--header-bg);
   backdrop-filter: blur(10px);
 }
+.theme-toggle{
+  position:absolute; top:18px; right:16px;
+  width:34px; height:34px; border-radius:50%;
+  background: var(--navy-card); border:1px solid var(--navy-line);
+  color:var(--amber); font-size:15px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.theme-toggle:hover{ border-color:var(--amber); }
+.theme-toggle:active{ transform:scale(0.94); }
 .eyebrow{
   font-family:'Space Mono',monospace;
   font-size:11px;
@@ -84,14 +114,14 @@ main{max-width:640px;margin:0 auto;padding: 16px;}
 .pill:active{transform:scale(0.96);}
 label{display:block; font-size:11.5px; color:var(--paper-faint); margin: 0 0 5px; font-weight:600; letter-spacing:0.02em;}
 input[type=text], input[type=number]{
-  width:100%; background: var(--navy-card); border:1px solid var(--navy-line); color:var(--paper);
+  width:100%; background: var(--field-bg); border:1px solid var(--field-border); color:var(--paper);
   border-radius:10px; padding: 11px 12px; font-size:15px; font-family:'Inter',sans-serif;
   -webkit-appearance:none; appearance:none;
 }
 input:focus{ outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(242,169,59,0.15); }
 select{
-  width:100%; background: var(--navy-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f2a93b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
-  border:1px solid var(--navy-line); color:var(--paper);
+  width:100%; background: var(--field-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f2a93b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border:1px solid var(--field-border); color:var(--paper);
   border-radius:10px; padding: 11px 30px 11px 12px; font-size:15px; font-family:'Inter',sans-serif;
   -webkit-appearance:none; appearance:none; cursor:pointer;
 }
@@ -169,7 +199,7 @@ summary:after{content:'ℹ'; color:var(--amber); font-size:14px;}
 .summary-inner{
   max-width:640px; margin:0 auto; background: var(--navy-panel); border:1px solid rgba(242,169,59,0.3);
   border-radius:16px; padding: 12px 16px; display:flex; align-items:center; justify-content:space-between;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.45); gap:10px;
+  box-shadow: var(--shadow); gap:10px;
 }
 .flip-group{display:flex; gap:16px;}
 .flip-item{text-align:left;}
@@ -180,3 +210,7 @@ summary:after{content:'ℹ'; color:var(--amber); font-size:14px;}
 footer{ text-align:center; font-size:11px; color:var(--paper-faint); padding: 20px 16px 8px; }
 footer a{color:var(--paper-faint);}
 @media (max-width:380px){ .row3{grid-template-columns:1fr 1fr;} }
+body, header, .theme-toggle, .block, .segcard, .notice, input[type=text], input[type=number],
+select, .chip, details, .summary-inner{
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}

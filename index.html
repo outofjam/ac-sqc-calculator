@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>SQC / Points: Aeroplan Calculator</title>
+<script>
+(function(){
+  try{
+    var saved = localStorage.getItem('theme');
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+    if(theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  }catch(e){}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -12,6 +21,7 @@
 <body>
 
 <header>
+  <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark theme"></button>
   <div class="eyebrow"><span class="dot"></span>UNOFFICIAL</div>
   <h1>SQC / Points Calculator</h1>
   <div class="sub">Mobile-friendly rebuild of <a href="https://acsqc.cowtool.com/" target="_blank">cowtool's ac-sqd</a> calculator, built on their open-source calculation engine (<a href="https://github.com/cowtool-llc/ac-sqd" target="_blank">source</a>). All credit for the underlying SQC/points logic and route data goes to cowtool; this is just a different UI on top of their work. Not affiliated with Air Canada or Aeroplan.</div>
