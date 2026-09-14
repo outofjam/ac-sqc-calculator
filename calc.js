@@ -283,7 +283,7 @@ function computeItinerary(segments, ticketNumber, eliteStatus, totalFare){
       totalPoints = basePoints;
     } else if(shape.kind === 'nonstar-other'){
       if(seg.distance != null){
-        basePoints = Math.trunc(seg.distance * shape.pct); // matches source: no /100 here
+        basePoints = Math.trunc(seg.distance * shape.pct / 100);
       }
       sqc = 0; bonusPoints = 0;
       totalPoints = basePoints;
