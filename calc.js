@@ -6,6 +6,23 @@
 
 function PICK(fc, table){ return table[fc] !== undefined ? table[fc] : 0; }
 function isAeroplanFareBasis(fb){ return fb.includes("BP00") || fb.includes("AERO"); }
+// TAP identifies its fare brand with a three-letter code embedded in the fare
+// basis (e.g. Y15CLC0A) rather than a fixed-position suffix, and callers may
+// instead name the brand directly (e.g. PLUS, "TOP PRIME"), so this searches
+// rather than slicing at a fixed offset. Order matters: PRIME must be checked
+// before TOP/EXE, or "TOP PRIME" would be read as business.
+function getTpBrandPercentMultiplier(fareBasis){
+  if(!fareBasis) return null;
+  const brand = fareBasis.split("/")[0].toUpperCase();
+  if(!brand) return null;
+  if(brand.includes("DSC") || brand.includes("DISCOUNT")) return 0;
+  if(brand.includes("BSC") || brand.includes("BASIC")) return 50;
+  if(brand.includes("CLC") || brand.includes("CLASSIC")) return 100;
+  if(brand.includes("PLU")) return 100;
+  if(brand.includes("PRIME")) return 115;
+  if(brand.includes("TOP") || brand.includes("EXE")) return 150;
+  return null;
+}
 function parseFareBasis(fareBasis){
   const split = fareBasis.split("/");
   const trueBasis = split[0];
@@ -96,9 +113,13 @@ const CARRIERS = {
   TG: {star:true, pct:(fc)=>PICK(fc,{F:150,A:150,P:150,C:125,D:125,J:125,Z:125,Y:110,B:110,M:100,H:100,Q:100,U:100,T:50,K:50,S:50})},
   TK: {star:true, pct:(fc)=>PICK(fc,{C:125,D:125,Z:125,K:125,J:110,Y:100,B:100,M:100,A:100,H:100,S:70,O:70,E:70,Q:70,T:70,L:70,V:25})},
   TP: {star:true, pct:(fc,ctx)=>{
-      const special=["LIS","OPO","PXO","FNC"];
-      if(special.includes(ctx.origin)&&special.includes(ctx.destination)) return PICK(fc,{C:150,D:150,Z:150,J:150,Y:100,B:100,M:100,H:100,Q:100,W:100,K:100,U:100,V:50,S:50,L:50,A:50,G:50,P:50,O:0,E:0,T:0});
-      return PICK(fc,{C:150,D:150,Z:150,J:150,Y:100,B:100,M:100,H:100,Q:100,V:50,W:50,S:50,L:50,K:50,U:50,A:50,G:50,P:50,O:0,E:0,T:0});
+      const brandPct = getTpBrandPercentMultiplier(ctx.fareBasis);
+      if(brandPct !== null) return brandPct;
+      // Without a brand, the booking class alone is ambiguous: TAP sells the
+      // same class across several brands at different rates. Assume the
+      // Economy Plus/Classic rate, which covers most economy inventory;
+      // Comfort's 115% is only awarded when the brand confirms it.
+      return PICK(fc,{C:150,D:150,Z:150,J:150,Y:100,B:100,M:100,S:100,H:100,Q:100,V:100,W:100,A:100,K:100,L:100,U:100,E:100,T:100,O:100});
     }},
   UA: {star:true, pct:(fc)=>PICK(fc,{J:150,C:150,D:150,Z:150,P:150,O:125,A:125,R:100,Y:125,B:125,M:100,E:100,U:100,H:100,Q:75,V:75,W:75,S:50,T:50,L:50,K:25,G:25,N:25}), sqcEligible:(fc)=>fc!=="N"},
   UK: {star:false, pct:(fc)=>PICK(fc,{C:125,J:125,D:125,Z:125,S:100,T:100,P:100,R:100,Y:100,B:100,M:100,A:50,H:50,N:50,Q:50,V:50,E:20,O:20})},
@@ -176,7 +197,7 @@ function computeSegmentShape(seg, ticketNumber, effOp){
     origin: seg.orig, destination: seg.dest,
     originCountry: seg.originCountry, destinationCountry: seg.destinationCountry,
     originContinent: seg.originContinent, destinationContinent: seg.destinationContinent,
-    ticketNumber,
+    ticketNumber, fareBasis: seg.fareBrand || null,
   };
   const isAcLqmEligible = effOp === "AC";
 
@@ -308,4 +329,8 @@ function computeItinerary(segments, ticketNumber, eliteStatus, totalFare){
       lqm: sumOrNull('lqm'),
     }
   };
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { CARRIERS, computeItinerary };
 }

@@ -1,0 +1,7 @@
+{
+  "name": "ac-sqc-calculator",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
