@@ -30,29 +30,33 @@ function lookupDistance(orig, dest){
    ============================================================ */
 let state = { ticketType:'014', elite:0, segments:[] };
 let segIdCounter = 0;
+let dataState = 'loading';   // 'loading' | 'ok' | 'bad'
+const segEls = new Map();    // segment id -> {li, out, inputs, chips, chipKeys}
+
 function makeSegment(){
   segIdCounter++;
-  return { id:segIdCounter, airline:'AC', orig:'', dest:'', fareClass:'', fareBrand:'', distance:null, distSource:'none' };
+  return { id:segIdCounter, airline:'AC', orig:'', dest:'', fareClass:'', fareBrand:'', distance:null, distSource:'none', open:true, editDist:false };
 }
-function addSegment(){ state.segments.push(makeSegment()); render(); }
-function removeSegment(id){ state.segments = state.segments.filter(s=>s.id!==id); render(); }
+function addSegment(focus){
+  state.segments.forEach(s=>{ s.open = false; });
+  const seg = makeSegment();
+  state.segments.push(seg);
+  const els = createSegEl(seg);
+  document.getElementById('segments').appendChild(els.li);
+  update();
+  if(focus) els.inputs.orig.focus();
+}
+function removeSegment(id){
+  state.segments = state.segments.filter(s=>s.id!==id);
+  const els = segEls.get(id);
+  if(els){ els.li.remove(); segEls.delete(id); }
+  update();
+  document.getElementById('addSegBtn').focus();
+}
 
 function fmt(n){ if(n==null || isNaN(n)) return '—'; return Math.round(n).toLocaleString(); }
-
-function airportHint(code, country){
-  code = (code||'').toUpperCase().trim();
-  if(!code) return '';
-  if(Object.keys(airportIndex).length === 0) return ''; // data hasn't loaded yet, don't flag prematurely
-  return country
-    ? `<div class="hint hint-ok">${country}</div>`
-    : `<div class="hint hint-bad">Not a recognized airport code</div>`;
-}
-
-const KIND_LABEL = {
-  'ac-dollar':'AC $ + brand', 'nonstar-ac-ticket':'014 · non-star $',
-  'star-distance':'Partner · distance %', 'nonstar-other':'Non-star · distance',
-  'zero':'Not eligible', 'unknown':'Need more info',
-};
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function setText(el, text){ if(el.textContent !== text) el.textContent = text; }
 
 // AC's dollar+brand method falls back to fare class via getSqcMultiplierFromFareClass, not a pct table
 const AC_FALLBACK_CLASSES = ['J','C','D','Z','P','O','E','A','Y','B','M','U','H','Q','V','W','S','T','L','K','G'];
@@ -63,139 +67,6 @@ function getValidFareClasses(effOp, ctx){
   return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => {
     try { return carrier.pct(l, ctx) > 0; } catch(e){ return false; }
   });
-}
-
-function render(){
-  const segWrap = document.getElementById('segments');
-  segWrap.innerHTML = '';
-  const ticketNumber = state.ticketType === '014' ? '0141234567890' : '1251234567890';
-
-  state.segments.forEach(seg=>{
-    if(seg.distSource !== 'manual'){
-      const dl = lookupDistance(seg.orig, seg.dest);
-      if(dl.source==='auto'){ seg.distance = dl.distance; seg.distSource='auto'; }
-      else { seg.distance = null; seg.distSource='none'; }
-    }
-    const ap1 = airportIndex[(seg.orig||'').toUpperCase()];
-    const ap2 = airportIndex[(seg.dest||'').toUpperCase()];
-    seg.originCountry = ap1 ? ap1.country : undefined;
-    seg.destinationCountry = ap2 ? ap2.country : undefined;
-    seg.originContinent = countryContinent[seg.originCountry];
-    seg.destinationContinent = countryContinent[seg.destinationCountry];
-  });
-
-  const totalFare = (parseFloat(document.getElementById('baseFare').value)||0) + (parseFloat(document.getElementById('surcharge').value)||0);
-  const itin = computeItinerary(state.segments, ticketNumber, state.elite, totalFare);
-
-  state.segments.forEach((seg, idx)=>{
-    const r = itin.perSegment[idx];
-    const card = document.createElement('div');
-    card.className='segcard';
-    const badgeClass = seg.distSource==='auto' ? 'badge-auto' : seg.distSource==='manual' ? 'badge-manual' : 'badge-none';
-    const badgeLabel = seg.distSource==='auto' ? 'AUTO' : seg.distSource==='manual' ? 'MANUAL' : 'NO DATA';
-    const effOp = resolveOperator(seg.airline || '');
-    const ctx = {
-      origin: seg.orig, destination: seg.dest,
-      originCountry: seg.originCountry, destinationCountry: seg.destinationCountry,
-      originContinent: seg.originContinent, destinationContinent: seg.destinationContinent,
-      ticketNumber,
-    };
-    const fareClasses = getValidFareClasses(effOp, ctx);
-
-    card.innerHTML = `
-      <div class="segcard-head">
-        <span class="segnum">SEG ${idx+1}</span>
-        <span class="seg-route mono">${(seg.orig||'???').toUpperCase()} → ${(seg.dest||'???').toUpperCase()}</span>
-        <button class="removeSeg" data-id="${seg.id}">✕</button>
-      </div>
-      <div class="row3">
-        <div class="field"><label>Operating</label><select class="mono segInput" data-field="airline" data-id="${seg.id}">${airlineOptionsHtml(seg.airline)}</select></div>
-        <div class="field"><label>Origin</label><input type="text" maxlength="4" class="mono segInput" data-field="orig" data-id="${seg.id}" value="${seg.orig}" placeholder="YYZ">${airportHint(seg.orig, seg.originCountry)}</div>
-        <div class="field"><label>Destination</label><input type="text" maxlength="4" class="mono segInput" data-field="dest" data-id="${seg.id}" value="${seg.dest}" placeholder="YVR">${airportHint(seg.dest, seg.destinationCountry)}</div>
-      </div>
-      <div class="row2">
-        <div class="field">
-          <label>Fare class</label>
-          <input type="text" maxlength="2" class="mono segInput" data-field="fareClass" data-id="${seg.id}" value="${seg.fareClass}" placeholder="K">
-          ${chipRowHtml(seg.id, 'fareClass', fareClasses.map(c=>({value:c, label:c})))}
-        </div>
-        <div class="field">
-          <label>Fare brand / basis</label>
-          <input type="text" maxlength="12" class="mono segInput" data-field="fareBrand" data-id="${seg.id}" value="${seg.fareBrand}" placeholder="CO (optional)">
-          ${chipRowHtml(seg.id, 'fareBrand', Object.keys(FARE_BRAND_INFO).sort().map(c=>({value:c, label:c, title:FARE_BRAND_INFO[c].name ? `${FARE_BRAND_INFO[c].name} — ${FARE_BRAND_INFO[c].mult}` : FARE_BRAND_INFO[c].mult})))}
-        </div>
-      </div>
-      <div class="distance-strip">
-        <span>Distance: <span class="val mono">${seg.distance!=null ? seg.distance.toLocaleString()+' mi' : 'enter below'}</span></span>
-        <span class="badge ${badgeClass}">${badgeLabel}</span>
-      </div>
-      <div class="field" style="margin-top:8px;">
-        <input type="number" min="0" class="mono segInput" data-field="distanceManual" data-id="${seg.id}" placeholder="Override distance (mi)" value="${seg.distSource==='manual' ? seg.distance : ''}">
-      </div>
-      <div class="earn-kind"><span class="tag">${KIND_LABEL[r.shape.kind]}</span>${r.shape.sqcMultiplier!=null ? `<span>SQC ×${r.shape.sqcMultiplier}</span>`:''}${r.shape.pct!=null ? `<span>${r.shape.pct}% of distance</span>`:''}</div>
-      <div class="seg-result">
-        <div class="cell"><div class="n">${fmt(r.sqc)}</div><div class="l">SQC</div></div>
-        <div class="cell"><div class="n">${fmt(r.totalPoints)}</div><div class="l">Points</div></div>
-        <div class="cell"><div class="n">${fmt(r.lqm)}</div><div class="l">LQM</div></div>
-      </div>
-    `;
-    segWrap.appendChild(card);
-  });
-
-  if(state.segments.length===0){
-    segWrap.innerHTML = `<div class="hint" style="text-align:center; padding:18px 0;">No segments yet. Add your first flight below.</div>`;
-  }
-
-  updateTotals(itin.totals);
-  wireSegmentInputs();
-}
-
-function updateTotals(totals){
-  const sqcEl = document.getElementById('totalSQC');
-  const ptsEl = document.getElementById('totalPoints');
-  const lqmEl = document.getElementById('totalLqm');
-  sqcEl.textContent = fmt(totals.sqc);
-  ptsEl.textContent = fmt(totals.totalPoints);
-  lqmEl.textContent = fmt(totals.lqm);
-  [sqcEl,ptsEl,lqmEl].forEach(el=>{ el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); });
-}
-
-function wireSegmentInputs(){
-  document.querySelectorAll('.removeSeg').forEach(btn=>{ btn.onclick = ()=> removeSegment(parseInt(btn.dataset.id)); });
-  document.querySelectorAll('.segInput').forEach(inp=>{
-    inp.oninput = ()=>{
-      const seg = state.segments.find(s=>s.id===parseInt(inp.dataset.id));
-      if(!seg) return;
-      const field = inp.dataset.field;
-      if(field==='distanceManual'){
-        const v = parseFloat(inp.value);
-        if(inp.value===''){ seg.distSource='none'; seg.distance=null; }
-        else { seg.distance = Math.max(0, v); seg.distSource='manual'; }
-      } else if(['airline','orig','dest','fareClass','fareBrand'].includes(field)){
-        seg[field] = inp.value.toUpperCase();
-      } else {
-        seg[field] = inp.value;
-      }
-      render();
-      const again = document.querySelector(`[data-id="${seg.id}"][data-field="${field}"]`);
-      if(again){ again.focus(); if(again.setSelectionRange && again.value){ const p=again.value.length; try{again.setSelectionRange(p,p);}catch(e){} } }
-    };
-  });
-  document.querySelectorAll('.chip').forEach(btn=>{
-    btn.onclick = ()=>{
-      const seg = state.segments.find(s=>s.id===parseInt(btn.dataset.chipId));
-      if(!seg) return;
-      seg[btn.dataset.chipField] = btn.dataset.chipValue;
-      render();
-    };
-  });
-}
-
-function chipRowHtml(segId, field, items){
-  if(!items.length) return '';
-  return `<div class="chip-row">${items.map(it =>
-    `<button type="button" class="chip" data-chip-id="${segId}" data-chip-field="${field}" data-chip-value="${it.value}"${it.title ? ` title="${it.title}"` : ''}>${it.label}</button>`
-  ).join('')}</div>`;
 }
 
 // display names sourced from cowtool-llc/ac-sqd's getCalculator() comments
@@ -236,32 +107,298 @@ const FARE_BRAND_INFO = {
   EL:{name:'Business Class (Lowest)', mult:'4× SQC'},
   EF:{name:'Business Class (Flexible)', mult:'4× SQC'},
 };
+const FARE_BRAND_CHIPS = Object.keys(FARE_BRAND_INFO).sort().map(c=>{
+  const info = FARE_BRAND_INFO[c];
+  return {value:c, title: info.name ? `${info.name}: ${info.mult}` : info.mult};
+});
 document.getElementById('fareBrandLegend').innerHTML = Object.keys(FARE_BRAND_INFO).sort().map(code => {
   const info = FARE_BRAND_INFO[code];
-  return `<div class="legend-row"><span class="mono legend-code">${code}</span><span class="legend-name">${info.name || '—'}</span><span class="legend-mult mono">${info.mult}</span></div>`;
+  return `<div class="legend-row"><span class="legend-code">${code}</span><span class="legend-name">${info.name || '—'}</span><span class="legend-mult">${info.mult}</span></div>`;
 }).join('');
+
+// Built once per segment; update() then patches text in place so inputs keep focus.
+function createSegEl(seg){
+  const li = document.createElement('li');
+  li.className = 'seg';
+  li.dataset.id = seg.id;
+  const p = `seg${seg.id}`;
+  li.innerHTML = `
+    <button type="button" class="seg-row" data-act="toggle" aria-controls="${p}-body">
+      <span class="seg-idx" data-out="idx"></span>
+      <span class="seg-route"><span data-out="orig"></span><span class="seg-line" aria-hidden="true"></span><span data-out="dest"></span></span>
+      <span class="seg-meta" data-out="meta"></span>
+      <span class="seg-dist" data-out="rowDist"></span>
+      <span class="seg-sqc" data-out="rowSqc"></span>
+      <span class="seg-chev" aria-hidden="true"></span>
+    </button>
+    <div class="seg-body" id="${p}-body">
+      <div class="grid3">
+        <div class="field"><label for="${p}-airline">Operated by</label><select id="${p}-airline" data-field="airline">${airlineOptionsHtml(seg.airline)}</select></div>
+        <div class="field"><label for="${p}-orig">From</label><input type="text" id="${p}-orig" maxlength="4" class="code-input" data-field="orig" placeholder="YYZ" autocomplete="off" autocapitalize="characters" spellcheck="false"><p class="hint" data-out="origHint"></p></div>
+        <div class="field"><label for="${p}-dest">To</label><input type="text" id="${p}-dest" maxlength="4" class="code-input" data-field="dest" placeholder="YVR" autocomplete="off" autocapitalize="characters" spellcheck="false"><p class="hint" data-out="destHint"></p></div>
+      </div>
+      <div class="grid2 seg-fares">
+        <div class="field">
+          <label for="${p}-fareClass">Fare class</label>
+          <input type="text" id="${p}-fareClass" maxlength="2" class="code-input" data-field="fareClass" placeholder="K" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <div class="chips" data-chips="fareClass" role="group" aria-label="Fare classes that earn on this airline"></div>
+        </div>
+        <div class="field">
+          <label for="${p}-fareBrand">Fare brand or basis <span class="opt">(optional)</span></label>
+          <input type="text" id="${p}-fareBrand" maxlength="12" class="code-input" data-field="fareBrand" placeholder="CO" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <div class="chips" data-chips="fareBrand" role="group" aria-label="Fare brand codes"></div>
+        </div>
+      </div>
+      <div class="dist">
+        <span>Distance <span class="dist-val" data-out="distVal"></span></span>
+        <span class="dist-src" data-out="distSrc"></span>
+        <button type="button" class="linkbtn" data-act="editDist" data-out="distBtn"></button>
+        <div class="dist-edit" data-out="distEdit">
+          <label for="${p}-distance">Distance in miles</label>
+          <input type="number" id="${p}-distance" min="0" inputmode="numeric" data-field="distanceManual">
+        </div>
+      </div>
+      <div class="seg-foot">
+        <p class="rule" data-out="rule"></p>
+        <dl class="seg-earn">
+          <div><dd data-out="sqc"></dd><dt>SQC</dt></div>
+          <div><dd data-out="points"></dd><dt>Points</dt></div>
+          <div><dd data-out="lqm"></dd><dt>LQM</dt></div>
+        </dl>
+        <button type="button" class="linkbtn danger" data-act="remove">Remove this flight</button>
+      </div>
+    </div>`;
+  const els = { li, out:{}, inputs:{}, chips:{}, chipKeys:{} };
+  li.querySelectorAll('[data-out]').forEach(el=>{ els.out[el.dataset.out] = el; });
+  li.querySelectorAll('[data-field]').forEach(el=>{ els.inputs[el.dataset.field] = el; });
+  li.querySelectorAll('[data-chips]').forEach(el=>{ els.chips[el.dataset.chips] = el; });
+  els.row = li.querySelector('.seg-row');
+  segEls.set(seg.id, els);
+  return els;
+}
+
+function patchChips(els, field, items, selected){
+  const wrap = els.chips[field];
+  const key = items.map(it=>it.value).join(',');
+  if(els.chipKeys[field] !== key){
+    els.chipKeys[field] = key;
+    wrap.innerHTML = items.map(it =>
+      `<button type="button" class="chip" data-chip-field="${field}" data-chip-value="${it.value}"${it.title ? ` title="${esc(it.title)}"` : ''}>${it.value}</button>`
+    ).join('');
+    wrap.hidden = !items.length;
+  }
+  wrap.querySelectorAll('.chip').forEach(chip=>{
+    chip.setAttribute('aria-pressed', chip.dataset.chipValue === selected ? 'true' : 'false');
+  });
+}
+
+function patchAirportHint(el, code, country){
+  // only judge a code once data has loaded and it's long enough to be one
+  if(code.length < 3 || dataState !== 'ok'){ setText(el, ''); el.className = 'hint'; return; }
+  setText(el, country || 'Not a recognized airport code');
+  el.className = country ? 'hint hint-ok' : 'hint hint-bad';
+}
+
+function ruleText(seg, r){
+  const s = r.shape;
+  const dollars = r.eligibleDollars != null ? `$${fmt(r.eligibleDollars)} of the fare` : null;
+  const needDist = 'Every flight needs a distance before the fare can be split.';
+  switch(s.kind){
+    case 'ac-dollar':
+      return dollars ? `Earns on dollars spent: ${dollars} at ${s.sqcMultiplier}× SQC.` : `Earns on dollars spent at ${s.sqcMultiplier}× SQC. ${needDist}`;
+    case 'nonstar-ac-ticket':
+      return dollars ? `Air Canada ticket on a non–Star Alliance partner: points on ${dollars}, no SQC.` : `Air Canada ticket on a non–Star Alliance partner: points on dollars spent, no SQC. ${needDist}`;
+    case 'star-distance':
+      return `Partner flight: points are ${s.pct}% of the distance flown, and SQC is points ÷ 5.`;
+    case 'nonstar-other':
+      return `Non–Star Alliance partner: points are ${s.pct}% of the distance flown, no SQC.`;
+    case 'zero':
+      return 'This fare does not earn SQC or points.';
+    default:
+      if(!seg.fareClass && !seg.fareBrand) return 'Add a fare class to see what this flight earns.';
+      if(!seg.orig || !seg.dest) return 'Add both airports to see what this flight earns.';
+      return 'This flight needs more detail before earnings can be worked out.';
+  }
+}
+
+function patchSeg(seg, idx, r, ticketNumber){
+  const els = segEls.get(seg.id);
+  const o = els.out;
+  els.li.classList.toggle('open', seg.open);
+  els.row.setAttribute('aria-expanded', seg.open ? 'true' : 'false');
+
+  // collapsed row
+  setText(o.idx, String(idx+1));
+  setText(o.orig, seg.orig || '···'); o.orig.className = seg.orig ? '' : 'blank';
+  setText(o.dest, seg.dest || '···'); o.dest.className = seg.dest ? '' : 'blank';
+  o.meta.innerHTML = [seg.airline, seg.fareClass, seg.fareBrand].filter(Boolean).map(v=>`<span>${esc(v)}</span>`).join('');
+  setText(o.rowDist, seg.distance != null ? `${seg.distance.toLocaleString()} mi` : '');
+  o.rowSqc.innerHTML = `${fmt(r.sqc)}<small>SQC</small>`;
+
+  // editor
+  patchAirportHint(o.origHint, seg.orig, seg.originCountry);
+  patchAirportHint(o.destHint, seg.dest, seg.destinationCountry);
+  const effOp = resolveOperator(seg.airline || '');
+  const ctx = {
+    origin: seg.orig, destination: seg.dest,
+    originCountry: seg.originCountry, destinationCountry: seg.destinationCountry,
+    originContinent: seg.originContinent, destinationContinent: seg.destinationContinent,
+    ticketNumber,
+  };
+  patchChips(els, 'fareClass', getValidFareClasses(effOp, ctx).map(c=>({value:c})), seg.fareClass);
+  patchChips(els, 'fareBrand', FARE_BRAND_CHIPS, seg.fareBrand);
+
+  const bothCodes = seg.orig.length >= 3 && seg.dest.length >= 3;
+  const manual = seg.distSource === 'manual';
+  const missing = seg.distSource === 'none' && bothCodes && dataState !== 'loading';
+  setText(o.distVal, seg.distance != null ? `${seg.distance.toLocaleString()} mi` : '—');
+  setText(o.distSrc, manual ? 'entered by you'
+    : seg.distSource === 'auto' ? 'from route data'
+    : missing ? 'No distance on file for this route. Enter it below.'
+    : 'appears once both airports are filled in');
+  setText(o.distBtn, manual ? 'Use route data instead' : seg.editDist ? 'Cancel' : 'Enter it yourself');
+  o.distBtn.hidden = missing && !manual;
+  o.distEdit.hidden = !(manual || missing || seg.editDist);
+
+  setText(o.rule, ruleText(seg, r));
+  setText(o.sqc, fmt(r.sqc));
+  setText(o.points, fmt(r.totalPoints));
+  setText(o.lqm, fmt(r.lqm));
+}
+
+function update(){
+  const ticketNumber = state.ticketType === '014' ? '0141234567890' : '1251234567890';
+
+  state.segments.forEach(seg=>{
+    if(seg.distSource !== 'manual'){
+      const dl = lookupDistance(seg.orig, seg.dest);
+      if(dl.source==='auto'){ seg.distance = dl.distance; seg.distSource='auto'; }
+      else { seg.distance = null; seg.distSource='none'; }
+    }
+    const ap1 = airportIndex[(seg.orig||'').toUpperCase()];
+    const ap2 = airportIndex[(seg.dest||'').toUpperCase()];
+    seg.originCountry = ap1 ? ap1.country : undefined;
+    seg.destinationCountry = ap2 ? ap2.country : undefined;
+    seg.originContinent = countryContinent[seg.originCountry];
+    seg.destinationContinent = countryContinent[seg.destinationCountry];
+  });
+
+  const totalFare = (parseFloat(document.getElementById('baseFare').value)||0) + (parseFloat(document.getElementById('surcharge').value)||0);
+  const itin = computeItinerary(state.segments, ticketNumber, state.elite, totalFare);
+
+  state.segments.forEach((seg, idx)=> patchSeg(seg, idx, itin.perSegment[idx], ticketNumber));
+  document.getElementById('segEmpty').hidden = state.segments.length > 0;
+  document.getElementById('segments').hidden = state.segments.length === 0;
+  updateTally(itin);
+}
+
+function updateTally(itin){
+  const totals = itin.totals;
+  [['totalSQC', totals.sqc], ['totalPoints', totals.totalPoints], ['totalLqm', totals.lqm]].forEach(([id, val])=>{
+    const el = document.getElementById(id);
+    const text = fmt(val);
+    if(el.textContent === text) return;
+    el.textContent = text;
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  });
+
+  const incomplete = state.segments.length > 0 && (totals.sqc == null || totals.totalPoints == null || totals.lqm == null);
+  const note = document.getElementById('tallyNote');
+  note.hidden = !incomplete;
+  setText(note, incomplete ? 'Some flights are missing details, so the totals are incomplete.' : '');
+
+  document.getElementById('breakdownBody').innerHTML = state.segments.length
+    ? state.segments.map((seg, i)=>{
+        const r = itin.perSegment[i];
+        return `<tr><td>${esc(seg.orig || '···')}–${esc(seg.dest || '···')}</td><td>${fmt(r.sqc)}</td><td>${fmt(r.totalPoints)}</td><td>${fmt(r.lqm)}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="4">No flights yet</td></tr>';
+
+  const split = document.getElementById('pointsSplit');
+  const hasBonus = totals.basePoints != null && totals.bonusPoints > 0;
+  split.hidden = !hasBonus;
+  setText(split, hasBonus ? `Points are ${fmt(totals.basePoints)} base plus ${fmt(totals.bonusPoints)} status bonus.` : '');
+}
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+function segFromEvent(e){
+  const li = e.target.closest('.seg');
+  return li ? state.segments.find(s=>s.id===parseInt(li.dataset.id)) : null;
+}
+const segWrap = document.getElementById('segments');
+segWrap.addEventListener('input', (e)=>{
+  const inp = e.target.closest('[data-field]');
+  const seg = segFromEvent(e);
+  if(!inp || !seg) return;
+  const field = inp.dataset.field;
+  if(field==='distanceManual'){
+    const v = parseFloat(inp.value);
+    if(inp.value==='' || isNaN(v)){ seg.distSource='none'; seg.distance=null; }
+    else { seg.distance = Math.max(0, v); seg.distSource='manual'; }
+    seg.editDist = true;
+  } else {
+    seg[field] = inp.value.toUpperCase().trim();
+  }
+  update();
+});
+segWrap.addEventListener('click', (e)=>{
+  const seg = segFromEvent(e);
+  if(!seg) return;
+  const els = segEls.get(seg.id);
+  const chip = e.target.closest('.chip');
+  if(chip){
+    const field = chip.dataset.chipField;
+    // tapping the selected chip again clears it
+    seg[field] = seg[field] === chip.dataset.chipValue ? '' : chip.dataset.chipValue;
+    els.inputs[field].value = seg[field];
+    update();
+    return;
+  }
+  const act = e.target.closest('[data-act]');
+  if(!act) return;
+  if(act.dataset.act === 'toggle'){
+    seg.open = !seg.open;
+    update();
+  } else if(act.dataset.act === 'remove'){
+    removeSegment(seg.id);
+  } else if(act.dataset.act === 'editDist'){
+    if(seg.distSource === 'manual'){
+      seg.distSource = 'none'; seg.distance = null; seg.editDist = false;
+      els.inputs.distanceManual.value = '';
+    } else {
+      seg.editDist = !seg.editDist;
+    }
+    update();
+    if(seg.editDist) els.inputs.distanceManual.focus();
+  }
+});
 
 function clampNonNegative(el){ if(el.value !== '' && parseFloat(el.value) < 0) el.value = 0; }
 
-document.getElementById('addSegBtn').onclick = addSegment;
-document.getElementById('baseFare').oninput = (e)=>{ clampNonNegative(e.target); render(); };
-document.getElementById('surcharge').oninput = (e)=>{ clampNonNegative(e.target); render(); };
-document.getElementById('ticketType').addEventListener('click', (e)=>{
-  const pill = e.target.closest('.pill'); if(!pill) return;
-  [...pill.parentElement.children].forEach(c=>c.classList.remove('active'));
-  pill.classList.add('active');
-  state.ticketType = pill.dataset.val;
-  render();
-});
-document.getElementById('eliteStatus').addEventListener('click', (e)=>{
-  const pill = e.target.closest('.pill'); if(!pill) return;
-  [...pill.parentElement.children].forEach(c=>c.classList.remove('active'));
-  pill.classList.add('active');
-  state.elite = parseInt(pill.dataset.val);
-  render();
+document.getElementById('addSegBtn').onclick = ()=> addSegment(true);
+document.getElementById('baseFare').oninput = (e)=>{ clampNonNegative(e.target); update(); };
+document.getElementById('surcharge').oninput = (e)=>{ clampNonNegative(e.target); update(); };
+
+function wireChoice(id, onPick){
+  document.getElementById(id).addEventListener('click', (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    [...btn.parentElement.children].forEach(c=>c.setAttribute('aria-pressed', c===btn ? 'true' : 'false'));
+    onPick(btn.dataset.val);
+    update();
+  });
+}
+wireChoice('ticketType', val=>{ state.ticketType = val; });
+wireChoice('eliteStatus', val=>{ state.elite = parseInt(val); });
+
+document.getElementById('tallyToggle').addEventListener('click', (e)=>{
+  const open = document.getElementById('tally').classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
+  e.currentTarget.textContent = open ? 'Hide' : 'Per flight';
 });
 
-function getTheme(){ return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+function getTheme(){ return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
 function applyThemeIcon(){
   const btn = document.getElementById('themeToggle');
   const theme = getTheme();
@@ -271,20 +408,24 @@ function applyThemeIcon(){
 applyThemeIcon();
 document.getElementById('themeToggle').addEventListener('click', ()=>{
   const next = getTheme() === 'light' ? 'dark' : 'light';
-  if(next === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  else document.documentElement.removeAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', next);
   try{ localStorage.setItem('theme', next); }catch(e){}
   applyThemeIcon();
 });
 
-function setStatus(msg, cls){
+function setStatus(kind, msg, detail){
+  dataState = kind;
   const el = document.getElementById('dataStatus');
-  el.textContent = '● ' + msg;
-  el.className = cls;
+  el.textContent = msg;
+  el.title = kind === 'ok' ? (detail || '') : msg;
+  el.className = 'status ' + (kind === 'ok' ? 'st-ok' : kind === 'bad' ? 'st-bad' : 'st-wait');
+  const notice = document.getElementById('dataNotice');
+  notice.hidden = kind !== 'bad';
+  notice.textContent = kind === 'bad' ? detail : '';
 }
 
 async function loadData(){
-  setStatus('loading live distance + country data…', 'st-wait');
+  setStatus('loading', 'Loading route data');
   try {
     const [airportsTxt, distTxt, countryTxt] = await Promise.all([
       fetch('https://raw.githubusercontent.com/cowtool-llc/ac-sqd/main/src/main/resources/airports.csv').then(r=>{ if(!r.ok) throw new Error('airports'); return r.text(); }),
@@ -339,16 +480,15 @@ async function loadData(){
     const distCount = Object.keys(distanceIndex).length;
     const countryCount = Object.keys(countryContinent).length;
     if(airportCount>0){
-      setStatus(`live data loaded: ${airportCount.toLocaleString()} airports, ${distCount.toLocaleString()} routes, ${countryCount.toLocaleString()} countries`, 'st-ok');
+      setStatus('ok', 'Route data loaded', `${airportCount.toLocaleString()} airports, ${distCount.toLocaleString()} routes, ${countryCount.toLocaleString()} countries`);
     } else {
-      setStatus('data fetched but columns unrecognized, use manual distance entry', 'st-bad');
+      setStatus('bad', 'Route data unreadable', 'Route data loaded but could not be read. Enter each distance yourself.');
     }
   } catch(err){
-    setStatus('could not reach GitHub from this browser, use manual distance entry; country-dependent partner rules will be unavailable', 'st-bad');
+    setStatus('bad', 'Route data unavailable', 'Could not load route data from GitHub. Enter each distance yourself. Partner rules that depend on country will not work.');
   }
-  render();
+  update();
 }
 
-state.segments.push(makeSegment());
-render();
+addSegment(false);
 loadData();
