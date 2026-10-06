@@ -6,99 +6,120 @@
 <title>SQC / Points: Aeroplan Calculator</title>
 <script>
 (function(){
+  var theme = 'light';
   try{
     var saved = localStorage.getItem('theme');
-    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
-    if(theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
   }catch(e){}
+  document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<header>
-  <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark theme"></button>
-  <div class="eyebrow"><span class="dot"></span>UNOFFICIAL</div>
-  <h1>SQC / Points Calculator</h1>
-  <div class="sub">Mobile-friendly rebuild of <a href="https://acsqc.cowtool.com/" target="_blank">cowtool's ac-sqd</a> calculator, built on their open-source calculation engine (<a href="https://github.com/cowtool-llc/ac-sqd" target="_blank">source</a>). All credit for the underlying SQC/points logic and route data goes to cowtool; this is just a different UI on top of their work. Not affiliated with Air Canada or Aeroplan.</div>
-</header>
-
-<main>
-  <div class="notice">
+<div class="shell">
+  <header class="masthead">
     <div>
-      <strong>This build ports the actual calculation code</strong> from <code class="mono">EarningResult.kt</code> / <code class="mono">ItineraryImpl.kt</code> in the real repo. The fare-brand to SQC multiplier table, the per-partner-airline distance tables, and the elite bonus math are the real rules, not a guess. Airport &amp; route distances still load live from cowtool's public CSVs in your browser.
-      <span id="dataStatus" class="st-wait">● loading live distance + country data…</span>
+      <h1>SQC / Points Calculator</h1>
+      <p class="lede">Estimate what an Air Canada itinerary earns in Aeroplan. Unofficial.</p>
     </div>
-  </div>
+    <div class="masthead-tools">
+      <span id="dataStatus" class="status st-wait">Loading route data</span>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme"></button>
+    </div>
+  </header>
 
-  <div class="block">
-    <div class="block-title">Ticket &amp; Status</div>
-    <div class="field">
-      <label>Ticket number prefix</label>
-      <div class="pillgroup" id="ticketType">
-        <div class="pill active" data-val="014">Air Canada (014)</div>
-        <div class="pill" data-val="other">Other</div>
+  <p class="notice" id="dataNotice" role="status" hidden></p>
+
+  <div class="layout">
+    <main>
+      <section class="panel" aria-labelledby="ticketHeading">
+        <h2 id="ticketHeading">Ticket and status</h2>
+        <div class="field">
+          <span class="label" id="ticketLabel">Ticket number starts with</span>
+          <div class="choice" id="ticketType" role="group" aria-labelledby="ticketLabel">
+            <button type="button" data-val="014" aria-pressed="true">014 (Air Canada)</button>
+            <button type="button" data-val="other" aria-pressed="false">Anything else</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="eliteLabel">Aeroplan status</span>
+          <div class="choice choice-6" id="eliteStatus" role="group" aria-labelledby="eliteLabel">
+            <button type="button" data-val="0" aria-pressed="true">None</button>
+            <button type="button" data-val="25" aria-pressed="false">25K</button>
+            <button type="button" data-val="35" aria-pressed="false">35K</button>
+            <button type="button" data-val="50" aria-pressed="false">50K</button>
+            <button type="button" data-val="75" aria-pressed="false">75K</button>
+            <button type="button" data-val="100" aria-pressed="false">SE</button>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label class="label" for="baseFare">Base fare, CAD</label>
+            <div class="money"><input type="number" id="baseFare" min="0" placeholder="0.00" inputmode="decimal"></div>
+          </div>
+          <div class="field">
+            <label class="label" for="surcharge">SQC-eligible YQ/YR, CAD</label>
+            <div class="money"><input type="number" id="surcharge" min="0" placeholder="0.00" inputmode="decimal"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="flightsHeading">
+        <h2 id="flightsHeading">Flights</h2>
+        <ol class="segs" id="segments"></ol>
+        <p class="empty" id="segEmpty" hidden>No flights yet. Add the first one to see what the trip earns.</p>
+        <button class="addbtn" id="addSegBtn" type="button">Add a flight</button>
+      </section>
+
+      <section class="panel reference" aria-labelledby="refHeading">
+        <h2 id="refHeading">Reference</h2>
+        <details>
+          <summary>Fare brand codes</summary>
+          <div class="legend-list" id="fareBrandLegend"></div>
+        </details>
+        <details>
+          <summary>How this is calculated</summary>
+          <div class="explain">
+            <p><strong>AC-operated flights</strong> (or codeshares under AC's own codes) always earn on the <em>dollar + fare-brand</em> method: <code>TG</code>=2× SQC, <code>FL/CO/LT</code>=4× if ticketed 014 else 2×, <code>PL/PF/EL/EF</code>=4×, <code>BA/GT</code>=0×. The fare class letter is used as a fallback when no brand code is given (<code>J/C/D/Z/P/O/E/A</code>→4×, <code>Y/B/M/U/H/Q/V</code>→4× if 014 else 2×, <code>S/T/L/K/G</code>→2×).</p>
+            <p><strong>Points</strong> = eligible dollars × (1 + elite bonus multiplier), where the bonus multiplier is an integer, not a percentage: None=0, 25K=1, 35K=2, 50K=3, 75K=4, SE=5. So an SE member earns <strong>6×</strong> points per dollar on AC-operated flights.</p>
+            <p><strong>Fare is split across segments by distance</strong>, not evenly. Each segment's eligible dollars = its share of total distance × total fare, rounded up. This only works if every segment in the itinerary has a known distance.</p>
+            <p><strong>Partner-ticketed, partner-operated</strong> flights (ticket not 014) earn Points from a % of distance flown, using that specific airline's own fare-class table, and SQC = points ÷ 5. <strong>AC-ticketed (014), partner-operated</strong> flights still use the dollar+brand method above. Non–Star Alliance partners never earn SQC.</p>
+            <p>LQM (lifetime miles) only accrue on AC-metal flights, at 1×/1.25×/1.5× distance depending on cabin, with a 250-mile floor once you hold any elite status.</p>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <aside class="tally" id="tally" aria-labelledby="tallyHeading">
+      <h2 id="tallyHeading">This trip earns</h2>
+      <dl class="tally-nums" aria-live="polite">
+        <div class="tally-lead"><dd id="totalSQC">0</dd><dt>SQC</dt></div>
+        <div><dd id="totalPoints">0</dd><dt>Points</dt></div>
+        <div><dd id="totalLqm">0</dd><dt>LQM</dt></div>
+      </dl>
+      <button class="tally-toggle" id="tallyToggle" type="button" aria-expanded="false" aria-controls="tallyMore">Per flight</button>
+      <div class="tally-more" id="tallyMore">
+        <p class="tally-note" id="tallyNote" hidden></p>
+        <table class="breakdown">
+          <thead><tr><th scope="col">Flight</th><th scope="col">SQC</th><th scope="col">Points</th><th scope="col">LQM</th></tr></thead>
+          <tbody id="breakdownBody"></tbody>
+        </table>
+        <p class="tally-split" id="pointsSplit" hidden></p>
       </div>
-    </div>
-    <div class="field">
-      <label>Aeroplan elite status</label>
-      <div class="pillgroup" id="eliteStatus">
-        <div class="pill active" data-val="0">None</div>
-        <div class="pill" data-val="25">25K</div>
-        <div class="pill" data-val="35">35K</div>
-        <div class="pill" data-val="50">50K</div>
-        <div class="pill" data-val="75">75K</div>
-        <div class="pill" data-val="100">SE</div>
-      </div>
-    </div>
-    <div class="row2">
-      <div class="field"><label>Base fare (CAD)</label><input type="number" id="baseFare" min="0" placeholder="0.00" inputmode="decimal"></div>
-      <div class="field"><label>SQC-eligible YQ/YR (CAD)</label><input type="number" id="surcharge" min="0" placeholder="0.00" inputmode="decimal"></div>
-    </div>
+    </aside>
   </div>
 
-  <div class="block">
-    <div class="block-title">Segments</div>
-    <div id="segments"></div>
-    <button class="addbtn" id="addSegBtn">+ Add flight segment</button>
-    <details style="margin-top:12px;">
-      <summary>Fare brand codes</summary>
-      <div class="legend-list" id="fareBrandLegend"></div>
-    </details>
-  </div>
-
-  <div class="block">
-    <details>
-      <summary>How this is calculated</summary>
-      <div class="explain">
-        <p><strong>AC-operated flights</strong> (or codeshares under AC's own codes) always earn on the <em>dollar + fare-brand</em> method: <code>TG</code>=2× SQC, <code>FL/CO/LT</code>=4× if ticketed 014 else 2×, <code>PL/PF/EL/EF</code>=4×, <code>BA/GT</code>=0×. Fare fare-class letter is used as a fallback when no brand code is given (<code>J/C/D/Z/P/O/E/A</code>→4×, <code>Y/B/M/U/H/Q/V</code>→4× if 014 else 2×, <code>S/T/L/K/G</code>→2×).</p>
-        <p><strong>Points</strong> = eligible dollars × (1 + elite bonus multiplier), where the bonus multiplier is an integer, not a percentage: None=0, 25K=1, 35K=2, 50K=3, 75K=4, SE=5. So an SE member earns <strong>6×</strong> points per dollar on AC-operated flights.</p>
-        <p><strong>Fare is split across segments by distance</strong>, not evenly. Each segment's eligible dollars = its share of total distance × total fare, rounded up. This only works if every segment in the itinerary has a known distance.</p>
-        <p><strong>Partner-ticketed, partner-operated</strong> flights (ticket not 014) earn Points from a % of distance flown, using that specific airline's own fare-class table, and SQC = points ÷ 5. <strong>AC-ticketed (014), partner-operated</strong> flights still use the dollar+brand method above. Non–Star Alliance partners never earn SQC.</p>
-        <p>LQM (lifetime miles) only accrue on AC-metal flights, at 1×/1.25×/1.5× distance depending on cabin, with a 250-mile floor once you hold any elite status.</p>
-      </div>
-    </details>
-  </div>
-</main>
-
-<div class="summary-bar">
-  <div class="summary-inner">
-    <div class="flip-group">
-      <div class="flip-item"><div class="l">Total SQC</div><div class="n mono" id="totalSQC">0</div></div>
-      <div class="flip-item"><div class="l">Total Points</div><div class="n mono" id="totalPoints">0</div></div>
-      <div class="flip-item"><div class="l">LQM</div><div class="n mono" id="totalLqm">0</div></div>
-    </div>
-  </div>
+  <footer>
+    <p>A mobile-friendly rebuild of <a href="https://acsqc.cowtool.com/" target="_blank" rel="noopener">cowtool's ac-sqd calculator</a>. The earning rules are ported from their open-source engine (<a href="https://github.com/cowtool-llc/ac-sqd" target="_blank" rel="noopener">cowtool-llc/ac-sqd</a>), and airport and route distances load live from their public data in your browser. All credit for the logic and data goes to cowtool.</p>
+    <p>Not affiliated with Air Canada or Aeroplan. Source for this UI: <a href="https://github.com/outofjam/ac-sqc-calculator" target="_blank" rel="noopener">outofjam/ac-sqc-calculator</a>.</p>
+  </footer>
 </div>
-
-<footer>
-  Calculation logic ported from <a href="https://github.com/cowtool-llc/ac-sqd" target="_blank">cowtool-llc/ac-sqd</a> source · data fetched live in your browser · rebuilt UI, not the official calculator<br>
-  This UI's source: <a href="https://github.com/outofjam/ac-sqc-calculator" target="_blank">outofjam/ac-sqc-calculator</a>
-</footer>
 
 <script src="calc.js"></script>
 <script src="app.js"></script>
